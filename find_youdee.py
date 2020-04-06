@@ -32,6 +32,9 @@ suspect_image_formats = ['jpeg', 'jpg', 'jpe', 'jp2', 'png', 'tiff', 'tif']
 supported_video_formats = ['mp4', 'mov', 'gif']
 
 def load_image(path):
+	"""
+	Load an image from path.
+	"""
 	image_array = None
 	# resize the image to a 224x224 with the same strategy as in TM2:
 	# resizing the image to be at least 224x224 and then cropping from the center
@@ -47,6 +50,9 @@ def load_image(path):
 	return normalized_image_array
 
 def process_image(path):
+	"""
+	Resize an image for TensorFlow.
+	"""
 	# Create the array of the right shape to feed into the keras model
 	# The 'length' or number of images you can put into the array is
 	# determined by the first position in the shape tuple, in this case 1.
@@ -56,6 +62,9 @@ def process_image(path):
 	return data
 
 def load_video(path):
+	"""
+	Load, fix color, and resize every frame of a video.
+	"""
 	vidcap = cv2.VideoCapture(path)
 	success,image = vidcap.read()
 	frames = []
@@ -83,6 +92,9 @@ class ProcessedVideo:
 	frame_count: int
 
 def process_video(path):
+	"""
+	Load every frame of a video into an array.
+	"""
 	frames = load_video(path)
 	frame_count = len(frames)
 	video_ndarray = np.ndarray(shape=(frame_count, 224, 224, 3), dtype=np.float32)
@@ -114,7 +126,9 @@ def get_labels(path):
 	return labels
 
 def process_labels(path):
-	# load labels
+	"""
+	For every label, zero a double in a dictionary with the corresponding label.
+	"""
 	labels = get_labels(path)
 	original_label_avg = {}
 	for label in labels:
@@ -122,6 +136,9 @@ def process_labels(path):
 	return original_label_avg
 
 def get_arguments():
+	"""
+	Retrieve and process command line arguments.
+	"""
 	arguments = defaultdict(list)
 	for k, v in ((k.lstrip('-'), v) for k,v in (a.split('=') for a in sys.argv[1:])):
 		arguments[k].append(v)
@@ -129,6 +146,9 @@ def get_arguments():
 	return dict(arguments)
 
 def check_arguments(arguments):
+	"""
+	Basic check to ensure every argument has one corresponding value.
+	"""
 	if len(arguments) > 1:
 		sys.exit('Too many arguments for "image"')
 	if os.path.isfile(arguments[0]) is False:
@@ -152,16 +172,11 @@ zeroed_labels = process_labels('labels.txt')
 
 if 'image' in arguments:
 	check_arguments(arguments['image'])
-
-	jobs.append(Job('image', process_image(arguments['image'][0]), \
-	 arguments['image'][0], 1, None, False))
+	jobs.append(Job('image', None, arguments['image'][0], 1, None, False))
 
 elif 'video' in arguments:
 	check_arguments(arguments['video'])
-
-	p_video = process_video(arguments['video'][0])
-	jobs.append(Job('video', p_video.video_ndarray, arguments['video'][0], \
-	 p_video.frame_count, None, False))
+	jobs.append(Job('video', None, arguments['video'][0], None, None, False))
 
 elif 'dir' in arguments:
 	print('Reading all files in directory...')
@@ -174,27 +189,27 @@ elif 'dir' in arguments:
 		filepath = arguments['dir'][0] + f
 
 		if file_extension in supported_video_formats:
-			p_video = process_video(filepath)
-			print('Found file ' + f + ' with ' + str(p_video.frame_count) + ' frames')
-			jobs.append(Job('video', p_video.video_ndarray, filepath, \
-			 p_video.frame_count, None, False))
+			jobs.append(Job('video', None, filepath, None, None, False))
 		elif file_extension in supported_image_formats or file_extension in suspect_image_formats:
 			if file_extension in suspect_image_formats:
-				print('"' + f + '" file type of "' + file_extension + '" may not be a supported image format on your OS')
-			jobs.append(Job('image', process_image(filepath), filepath, 1, None, False))
+				print('"' + f + '" image type of "' + file_extension + '" may not be a supported image format on your OS')
+			jobs.append(Job('image', None, filepath, 1, None, False))
 		else:
 			print('File format "' + file_extension + '" not supported for file "' + f + '"')
+
 	print('Finished reading all files in directory')
 	if len(files) == 0:
 		sys.exit('No files in directory')
 	if len(jobs) == 0:
 		sys.exit('Found no readable files in directory')
+
 elif 'help' in arguments:
 	print('--image=[FILE_PATH]  ... predict one image')
 	print('--video=[FILE_PATH]  ... predict one video')
 	print('--dir=[DIR_PATH]     ... predict all valid image and video files in a directory')
 	print('--output=[FILE_PATH] ... where to save csv of prediction results')
 	sys.exit()
+
 else:
 	sys.exit('No arguments specified')
 
@@ -202,10 +217,24 @@ else:
 model = tensorflow.keras.models.load_model('keras_model.h5', {'YoUDee': 'YoUDee', 'Neutral': 'Neutral'})
 
 for j in jobs:
-	print('Doing job ' + j.filename + ' type of ' + j.type + ' with ' + str(j.frame_count) + ' frames')
+	print('Doing job ' + j.filename + ' type of ' + j.type)
+	# loading files right before processing to prevent using excessive memory
+	# when predicting for a large directory
+	if j.type == 'image':
+		print('Loading image...')
+		j.data = process_image(j.filename)
+	elif j.type == 'video':
+		print('Loading video...')
+		video_data = process_video(j.filename)
+		j.data = video_data.video_ndarray
+		j.frame_count = video_data.frame_count
 	j.result = model.predict(j.data)
+	# dump file for garbage collector
+	j.data = None
 
 sustained_frames = 0
+
+print('\nPredictions\n')
 
 for j in jobs:
 	print(j.filename)
@@ -221,8 +250,8 @@ for j in jobs:
 				sustained_frames = 0
 		for label in labels:
 			if j.type == 'image':
-				print(str(labels[label]) + ": " + \
-				str(round(j.result[0][label] * 100, 3)) + "%")
+				j.result[0][label] = round(j.result[0][label] * 100, 3)
+				print(str(labels[label]) + ": " + str(j.result[0][label]) + "%")
 			elif j.type == 'video':
 				labels_avg[label] += j.result[i][label]
 		if j.type == 'image':
@@ -231,15 +260,15 @@ for j in jobs:
 			print('Has YouDee? ' + str(j.has_youdee))
 	if j.type == 'video':
 		for label in labels:
-			print(labels[label] + ": " + \
-			str(round((labels_avg[label] / float(j.frame_count)) * 100, 3)) + "%")
+			j.result[0][label] = round((labels_avg[label] / float(j.frame_count)) * 100, 3)
+			print(labels[label] + ": " + str(j.result[0][label]) + "%")
 		print('Has YouDee? ' + str(j.has_youdee))
 
 if 'output' in arguments:
 	with open(arguments['output'][0], 'a') as output:
 		output.write('type,filename,frame_count,youdee_result,neutral_result,has_youdee\n')
 		for j in jobs:
-			output.write(j.type + ',' + j.filename + ',' + str(j.frame_count) + \
+			output.write(j.type + ',' + j.filename + ',' + str(j.frame_count) + ',' + \
 			str(j.result[0][0]) + ',' + str(j.result[0][1]) + ',' + str(j.has_youdee) + \
 			'\n')
 	print('Saved output in "' + arguments['output'][0])
