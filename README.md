@@ -8,6 +8,8 @@ Bird watching allows us to gain insights into the ecological health of our surro
 
 To aid Delawarean ornithologists, this Machine Learning (ML) model was developed.
 
+[You can also test out the model with your webcam using this webpage here.](https://villemarette.me/youdee-finder/)
+
 ## Statistics
 
 The ML model was trained using:
@@ -39,6 +41,8 @@ Install the requirements:
 
 
 ## Usage
+
+[Besides using the script locally, you can also use the web-based model here.](https://villemarette.me/youdee-finder/)
 
 Below are the few basic command line flags you can set for this script.
 
