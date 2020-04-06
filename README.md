@@ -1,9 +1,8 @@
 # YoUDee Finder
----
 
 Locating the University of Delaware mascot, [YoUDee](https://en.wikipedia.org/wiki/YoUDee), is a matter of grave importance.
 
-![YoUDee laying on Raymond Field](https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/YoUDee_Laying_Down.jpg/1024px-YoUDee_Laying_Down.jpg)
+![YoUDee laying on Raymond Field](https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/YoUDee_Laying_Down.jpg/308px-YoUDee_Laying_Down.jpg)
 
 Bird watching allows us to gain insights into the ecological health of our surroundings. The Delaware Blue Hen is a rare species only found at the University of Delaware.
 
